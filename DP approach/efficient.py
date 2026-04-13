@@ -1,4 +1,5 @@
-"""Memory-efficient sequence alignment using DP + divide-and-conquer.
+"""
+Memory-efficient sequence alignment using DP + divide-and-conquer.
 
 This module is limited to the memory-efficient alignment step. It assumes the
 two full input sequences have already been generated elsewhere.
