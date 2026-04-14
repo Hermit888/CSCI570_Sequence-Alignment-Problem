@@ -1,4 +1,4 @@
-import time, psutil 
+import time, sys, psutil
 from pathlib import Path
 
 
@@ -10,6 +10,67 @@ alpha = {
     'T': {'A':94, 'C':48, 'G':110, 'T':0}
 }
 delta = 30
+
+
+def generate_string(base, indices):
+    """
+    generate the input string by inserting the current string into itself
+    after the given index. each step doubles the length of the string.
+
+    base: the base string
+    indices: the list of insertion indices
+
+    return the generated string
+    """
+    s = base
+    for idx in indices:
+        # insert a copy of s after position idx (0-indexed)
+        s = s[:idx+1] + s + s[idx+1:]
+    return s
+
+
+def parse_input(input_path):
+    """
+    parse the input file and return the two generated strings
+
+    file format:
+        line 1       : base string s0
+        next j lines : integer insertion indices for s0
+        next line    : base string t0
+        next k lines : integer insertion indices for t0
+
+    input_path: the path to the input file
+
+    return the two generated strings
+    """
+    with open(input_path, 'r') as f:
+        lines = [line.strip() for line in f if line.strip()]
+
+    # first base string
+    s0 = lines[0]
+
+    # collect s0's insertion indices until we hit a non-integer line (t0)
+    i = 1
+    s_indices = []
+    while i < len(lines) and lines[i].lstrip('-').isdigit():
+        s_indices.append(int(lines[i]))
+        i += 1
+
+    # second base string
+    t0 = lines[i]
+    # remaining lines are t0's insertion indices
+    t_indices = [int(line) for line in lines[i+1:]]
+
+    # generate the two strings
+    x = generate_string(s0, s_indices)
+    y = generate_string(t0, t_indices)
+
+    # sanity check: len(sj) should be 2^j * len(s0)
+    assert len(x) == (2 ** len(s_indices)) * len(s0)
+    assert len(y) == (2 ** len(t_indices)) * len(t0)
+
+    return x, y
+
 
 def basic_dp(x, y, delta, alpha):
     """
@@ -62,7 +123,7 @@ def basic_dp(x, y, delta, alpha):
             align_y.append(y[j-1])
             j -= 1
 
-    # if we reach the end of one string, 
+    # if we reach the end of one string,
     # we need to add gaps for the remaining characters of the other string
     while i > 0:
         align_x.append(x[i-1])
@@ -76,6 +137,7 @@ def basic_dp(x, y, delta, alpha):
         j -= 1
 
     return dp[m][n], ''.join(reversed(align_x)), ''.join(reversed(align_y))
+
 
 def process_memory():
     """
@@ -95,43 +157,32 @@ def write_output(path, cost, align_x, align_y, time_ms, memory_kb):
         f.write(str(cost) + "\n")
         f.write(align_x + "\n")
         f.write(align_y + "\n")
-        f.write(f"{time_ms:.3f}\n")
-        f.write(f"{memory_kb:.3f}")
+        f.write(f"{time_ms}\n")
+        f.write(f"{memory_kb}\n")
 
 
-def main_dp(x, y, delta, alpha, idx):
-    """
-    main function to run the basic dp approach
+if __name__ == "__main__":
+    # parse command line arguments
+    if len(sys.argv) != 3:
+        raise SystemExit("Usage: python3 basic.py <input_file> <output_file>")
+    input_path = sys.argv[1]
+    output_path = sys.argv[2]
 
-    x: the first string
-    y: the second string
-    delta: the gap penalty
-    alpha: the mismatch penalty matrix
-    idx: the index of the input case
-    """
-    # start of time and memory
-    start_mem = process_memory()
+    # parse input file and generate the two strings
+    x, y = parse_input(input_path)
+
+    # start of time
     start_time = time.time()
 
+    # run the basic dp algorithm
     cost, align_x, align_y = basic_dp(x, y, delta, alpha)
 
     # end of time and memory
     end_time = time.time()
-    end_mem = process_memory()
+    memory_kb = process_memory()
 
-    # calculate time and memory usage
+    # calculate time usage
     time_ms = (end_time - start_time) * 1000
-    memory_kb = max(0, end_mem - start_mem)
-
-    # get currect directory
-    curr_dir = Path(__file__).resolve().parent
-    # output directory
-    output_dir = curr_dir / 'output'
-    # if don't exist, create it
-    output_dir.mkdir(exist_ok=True)
-
-    # create output file
-    path = output_dir / f'output{idx}.txt'
 
     # generate output file
-    write_output(path, cost, align_x, align_y, time_ms, memory_kb)
+    write_output(output_path, cost, align_x, align_y, time_ms, memory_kb)
