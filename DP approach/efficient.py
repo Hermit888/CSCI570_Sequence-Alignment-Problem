@@ -1,13 +1,11 @@
 """
 Memory-efficient sequence alignment using DP + divide-and-conquer.
-
-This module is limited to the memory-efficient alignment step. It assumes the
-two full input sequences have already been generated elsewhere.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass
+import sys
 import time
 from typing import Dict, List, Tuple
 import psutil
@@ -22,6 +20,41 @@ MISMATCH_COST: Dict[str, Dict[str, int]] = {
 }
 
 
+def generate_string(base: str, indices: List[int]) -> str:
+    """Iteratively insert the current string into itself after each given index."""
+    s = base
+    for idx in indices:
+        s = s[:idx + 1] + s + s[idx + 1:]
+    return s
+
+
+def parse_input(input_path: str) -> Tuple[str, str]:
+    """Parse the input file and return the two generated sequences."""
+    with open(input_path, "r", encoding="utf-8") as handle:
+        lines = [line.strip() for line in handle if line.strip()]
+
+    s0 = lines[0]
+
+    # Collect s0's insertion indices until we hit a non-integer line (t0).
+    i = 1
+    s_indices: List[int] = []
+    while i < len(lines) and lines[i].lstrip("-").isdigit():
+        s_indices.append(int(lines[i]))
+        i += 1
+
+    t0 = lines[i]
+    t_indices = [int(line) for line in lines[i + 1:]]
+
+    x = generate_string(s0, s_indices)
+    y = generate_string(t0, t_indices)
+
+    # len(sj) should equal 2^j * len(s0)
+    assert len(x) == (2 ** len(s_indices)) * len(s0)
+    assert len(y) == (2 ** len(t_indices)) * len(t0)
+
+    return x, y
+
+
 @dataclass(frozen=True)
 class AlignmentResult:
     cost: int
@@ -31,16 +64,6 @@ class AlignmentResult:
 
 def substitution_cost(left: str, right: str) -> int:
     return MISMATCH_COST[left][right]
-
-
-def alignment_cost(aligned_x: str, aligned_y: str) -> int:
-    total = 0
-    for left, right in zip(aligned_x, aligned_y):
-        if left == "_" or right == "_":
-            total += GAP_PENALTY
-        else:
-            total += substitution_cost(left, right)
-    return total
 
 
 def last_row_costs(x: str, y: str) -> List[int]:
@@ -169,31 +192,7 @@ def process_memory() -> int:
     return memory_consumed
 
 
-def time_wrapper(x: str, y: str) -> Tuple[int, str, str, float]:
-    start_time = time.time()
-    cost, aligned_x, aligned_y = memory_efficient_alignment(x, y)
-    end_time = time.time()
-    time_taken = (end_time - start_time) * 1000
-    return cost, aligned_x, aligned_y, time_taken
-
-
-def process_input_file(input_path: str) -> Tuple[int, str, str, float, int]:
-    with open(input_path, "r", encoding="utf-8") as handle:
-        lines = [line.strip() for line in handle if line.strip()]
-
-    if len(lines) < 2:
-        raise ValueError("Input file must contain two generated sequences.")
-
-    x, y = lines[0], lines[1]
-
-    cost, aligned_x, aligned_y, elapsed_ms = time_wrapper(x, y)
-    memory_kb = process_memory()
-
-    return cost, aligned_x, aligned_y, elapsed_ms, memory_kb
-
-
-def write_output_file(output_path: str, result: Tuple[int, str, str, float, int]) -> None:
-    cost, aligned_x, aligned_y, elapsed_ms, memory_kb = result
+def write_output_file(output_path: str, cost: int, aligned_x: str, aligned_y: str, elapsed_ms: float, memory_kb: int) -> None:
     with open(output_path, "w", encoding="utf-8") as handle:
         handle.write(f"{cost}\n")
         handle.write(f"{aligned_x}\n")
@@ -203,12 +202,21 @@ def write_output_file(output_path: str, result: Tuple[int, str, str, float, int]
 
 
 if __name__ == "__main__":
-    import sys
-
     if len(sys.argv) != 3:
         raise SystemExit(
             "Usage: python3 efficient.py <input_file> <output_file>"
         )
 
-    result = process_input_file(sys.argv[1])
-    write_output_file(sys.argv[2], result)
+    input_path = sys.argv[1]
+    output_path = sys.argv[2]
+
+    # Parse input file and generate the two sequences.
+    x, y = parse_input(input_path)
+
+    # Run the memory-efficient alignment with time measurement.
+    start_time = time.time()
+    cost, aligned_x, aligned_y = memory_efficient_alignment(x, y)
+    elapsed_ms = (time.time() - start_time) * 1000
+    memory_kb = process_memory()
+
+    write_output_file(output_path, cost, aligned_x, aligned_y, elapsed_ms, memory_kb)
