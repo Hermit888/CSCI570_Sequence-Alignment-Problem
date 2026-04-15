@@ -175,11 +175,13 @@ if __name__ == "__main__":
     start_time = time.time()
 
     # run the basic dp algorithm
+    before = process_memory()
     cost, align_x, align_y = basic_dp(x, y, delta, alpha)
+    after = process_memory()
+    memory_kb = after - before
 
     # end of time and memory
     end_time = time.time()
-    memory_kb = process_memory()
 
     # calculate time usage
     time_ms = (end_time - start_time) * 1000

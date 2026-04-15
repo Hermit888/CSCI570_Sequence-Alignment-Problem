@@ -144,13 +144,13 @@ def basic_alignment(x: str, y: str) -> AlignmentResult:
     )
 
 
-def hirschberg_alignment(x: str, y: str) -> AlignmentResult:
+def hirschberg_alignment(x: str, y: str, trivial_size: int) -> AlignmentResult:
     """Computes one optimal alignment in O(len(x) * len(y)) time and O(len(y)) space."""
     if not x:
         return AlignmentResult(len(y) * GAP_PENALTY, "_" * len(y), y)
     if not y:
         return AlignmentResult(len(x) * GAP_PENALTY, x, "_" * len(x))
-    if len(x) == 1 or len(y) == 1:
+    if len(x) <= trivial_size or len(y) <= trivial_size:
         return basic_alignment(x, y)
 
     x_mid = len(x) // 2
@@ -167,8 +167,8 @@ def hirschberg_alignment(x: str, y: str) -> AlignmentResult:
             best_cost = candidate
             split_y = j
 
-    left_result = hirschberg_alignment(x[:x_mid], y[:split_y])
-    right_result = hirschberg_alignment(x[x_mid:], y[split_y:])
+    left_result = hirschberg_alignment(x[:x_mid], y[:split_y], trivial_size)
+    right_result = hirschberg_alignment(x[x_mid:], y[split_y:], trivial_size)
 
     aligned_x = left_result.aligned_x + right_result.aligned_x
     aligned_y = left_result.aligned_y + right_result.aligned_y
@@ -180,8 +180,8 @@ def hirschberg_alignment(x: str, y: str) -> AlignmentResult:
     )
 
 
-def memory_efficient_alignment(x: str, y: str) -> Tuple[int, str, str]:
-    result = hirschberg_alignment(x, y)
+def memory_efficient_alignment(x: str, y: str, trivial_size: int) -> Tuple[int, str, str]:
+    result = hirschberg_alignment(x, y, trivial_size)
     return result.cost, result.aligned_x, result.aligned_y
 
 
@@ -202,21 +202,25 @@ def write_output_file(output_path: str, cost: int, aligned_x: str, aligned_y: st
 
 
 if __name__ == "__main__":
-    if len(sys.argv) != 3:
+    if len(sys.argv) < 3:
         raise SystemExit(
-            "Usage: python3 efficient.py <input_file> <output_file>"
+            "Usage: python3 efficient.py <input_file> <output_file> Optional[<trivial_size>]"
         )
 
     input_path = sys.argv[1]
     output_path = sys.argv[2]
+    # default trivial size is 1
+    trivial_size = 1 if len(sys.argv) == 3 else int(sys.argv[3])
 
     # Parse input file and generate the two sequences.
     x, y = parse_input(input_path)
 
     # Run the memory-efficient alignment with time measurement.
     start_time = time.time()
-    cost, aligned_x, aligned_y = memory_efficient_alignment(x, y)
+    before = process_memory()
+    cost, aligned_x, aligned_y = memory_efficient_alignment(x, y, trivial_size)
+    after = process_memory()
+    memory_kb = after - before
     elapsed_ms = (time.time() - start_time) * 1000
-    memory_kb = process_memory()
 
     write_output_file(output_path, cost, aligned_x, aligned_y, elapsed_ms, memory_kb)
